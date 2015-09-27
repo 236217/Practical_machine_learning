@@ -1,0 +1,129 @@
+---
+title: "Practical Machine Learning Project"
+author: "Abhishek Nandi"
+date: "Sunday, September 27, 2015"
+output: html_document
+---
+
+INTRODUCTION
+=========================================================
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to create a classification model which predicts the manner in which they completed the exercise.
+
+Libraries
+===================================
+The following libraries are used in the code
+
+```{r}
+library(caret)
+library(kernlab)
+library(randomForest)
+library(knitr)
+library(corrplot)
+```
+
+
+Downloading the Data for modeling
+=======================================
+Two CSV files are downloaded from cloud and stored inside Data folder of the working directory
+```{r}
+# Create data Folder
+if (!file.exists("data")) {dir.create("data")}
+
+#  URL and data file
+myurl1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+myfile1 <- "./data/pml-training.csv"
+myurl2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+myfile2 <- "./data/pml-testing.csv"
+
+# download the file and note the time
+
+download.file(myurl1, destfile = myfile1,method ="libcurl" )
+download.file(myurl2, destfile = myfile2 ,method ="libcurl")
+dateDownloaded <- date()
+```
+
+Prepocessing Data for Model Building
+=====================================================
+Raw data have NAs and some additional information which are not important from model.Cleansing raw data and removing irrelevant data from the dataset is done in this step.
+
+```{r}
+# Reading Training data
+training_data <- read.csv("./data/pml-training.csv", na.strings= c("NA",""," "))
+
+# cleaning data by removing columns with NAs
+training_data_NAs <- apply(training_data, 2, function(x) {sum(is.na(x))})
+training_data_clean <- training_data[,which(training_data_NAs == 0)]
+
+# remove identifier columns such as name, timestamps etc
+training_data_clean <- training_data_clean[8:length(training_data_clean)]
+```
+
+Partitioning data into Training and Cross validation Set 
+==========================================
+Cleaned data is divided into training dataset for model preparation and validation dataset for validating the model in 70:30 ratio.
+
+```{r}
+
+# Partitioning cleaned Training data into training and cross validation
+inTrain <- createDataPartition(y = training_data_clean$classe, p = 0.7, list = FALSE)
+training <- training_data_clean[inTrain, ]
+crossval <- training_data_clean[-inTrain, ]
+```
+Plotting Correlation Matrix
+===========================================
+
+
+```{r, echo=TRUE}
+# plot a correlation matrix
+correlMatrix <- cor(training[, -length(training)])
+corrplot(correlMatrix, order = "FPC", method = "circle", type = "lower", tl.cex = 0.8,  tl.col = rgb(0, 0, 0))
+```
+In this type of plot the dark red and blue colours indicate a highly negative and positive relationship respectively between the variables.
+
+Buidling Random Forest Model
+================================================
+A Random Forest algorithm is selected to create a classification model for prediction.
+The variable classe is selected as dependent variables and all other variables are treated as predictors.
+```{r}
+# fit a model to predict the classe taking all other variables as predictors
+model <- randomForest(classe ~ ., data = training)
+```
+
+Performing cross validation on the validation set
+=================================================
+The model was then used to classify the remaining 30% of data. The results are given in a confusion matrix along with the actual classifications in order to determine the accuracy of the model.
+
+
+```{r}
+
+# crossvalidate the model using the remaining 30% of data
+predictVal <- predict(model, crossval)
+confusionMatrix(crossval$classe, predictVal)
+```
+This model yielded a 99.6% prediction accuracy. Hence , model is considered robust and fit for prediction on the test dataset.
+
+Preprocessing Testing dataset 
+===================================================
+
+```{r}
+
+# Similar data processing on  testing data
+test_data <- read.csv("./data/pml-testing.csv", na.strings= c("NA",""," "))
+test_data_NAs <- apply(test_data, 2, function(x) {sum(is.na(x))})
+test_data_clean <- test_data[,which(test_data_NAs == 0)]
+test_data_clean <- test_data_clean[8:length(test_data_clean)]
+```
+
+Preparing prediction on the testing data based on random Forest Model
+====================================================================
+
+```{r}
+
+# predict the classes of the test set
+predictTest <- predict(model, test_data_clean)
+predictTest
+```
+
